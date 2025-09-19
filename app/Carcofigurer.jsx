@@ -245,38 +245,40 @@ const calculatePricing = () => {
 
         {/* Main Content */}
         {selectedCategory && carData && !loading && (
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            {/* Step 1: Model Selection */}
-            <div className="bg-white rounded-lg border shadow-sm">
-              <div className="p-4 border-b bg-gray-50">
-                <h3 className="font-semibold text-gray-800 flex items-center">
-                  <span className="w-6 h-6 bg-blue-500 text-white rounded-full text-xs flex items-center justify-center mr-2">1</span>
-                  모델 선택
-                </h3>
-              </div>
-              <div className="p-4 space-y-2">
-                {Object.keys(carData).map(model => (
-                  <label key={model} className={`flex items-center space-x-3 p-3 rounded-lg border cursor-pointer hover:bg-gray-50 transition-colors ${
-                    selectedModel === model ? 'bg-blue-50 border-blue-300' : 'border-gray-200'
-                  }`}>
-                    <input
-                      type="radio"
-                      name="model"
-                      value={model}
-                      checked={selectedModel === model}
-                      onChange={(e) => handleModelChange(e.target.value)}
-                      className="w-4 h-4 text-blue-600"
-                    />
-                    <span className={`font-medium ${selectedModel === model ? 'text-blue-700' : 'text-gray-700'}`}>
-                      {model}
-                    </span>
-                  </label>
-                ))}
+          <div className="grid grid-cols-1 lg:grid-cols-4 lg:grid-rows-1 gap-6">
+            {/* Step 1: Model Selection - Row 1 spanning all columns */}
+            <div className="bg-white rounded-lg border shadow-sm lg:col-span-4 lg:row-start-1">
+              <div className="p-4">
+                <div className="flex items-center gap-4 flex-wrap">
+                  <h3 className="font-semibold text-gray-800 flex items-center">
+                    <span className="w-6 h-6 bg-blue-500 text-white rounded-full text-xs flex items-center justify-center mr-2">1</span>
+                    모델 선택
+                  </h3>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {Object.keys(carData).map(model => (
+                      <label key={model} className={`flex items-center space-x-2 px-3 py-2 rounded-lg border cursor-pointer hover:bg-gray-50 transition-colors ${
+                        selectedModel === model ? 'bg-blue-50 border-blue-300' : 'border-gray-200'
+                      }`}>
+                        <input
+                          type="radio"
+                          name="model"
+                          value={model}
+                          checked={selectedModel === model}
+                          onChange={(e) => handleModelChange(e.target.value)}
+                          className="w-4 h-4 text-blue-600"
+                        />
+                        <span className={`font-medium ${selectedModel === model ? 'text-blue-700' : 'text-gray-700'}`}>
+                          {model}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Step 2: Powertrain Selection */}
-            <div className={`bg-white rounded-lg border shadow-sm ${!selectedModel ? 'opacity-50' : ''}`}>
+            {/* Step 2: Powertrain Selection - Row 2, Col 1 */}
+            <div className={`bg-white rounded-lg border shadow-sm lg:col-start-1 lg:row-start-2 ${!selectedModel ? 'opacity-50' : ''}`}>
               <div className="p-4 border-b bg-gray-50">
                 <h3 className="font-semibold text-gray-800 flex items-center">
                   <span className="w-6 h-6 bg-blue-500 text-white rounded-full text-xs flex items-center justify-center mr-2">2</span>
@@ -308,8 +310,8 @@ const calculatePricing = () => {
               </div>
             </div>
 
-            {/* Step 3: Trim Selection */}
-            <div className={`bg-white rounded-lg border shadow-sm ${!selectedPowertrain ? 'opacity-50' : ''}`}>
+            {/* Step 3: Trim Selection - Row 3, Col 1 */}
+            <div className={`bg-white rounded-lg border shadow-sm lg:col-start-1 lg:row-start-3 ${!selectedPowertrain ? 'opacity-50' : ''}`}>
               <div className="p-4 border-b bg-gray-50">
                 <h3 className="font-semibold text-gray-800 flex items-center">
                   <span className="w-6 h-6 bg-blue-500 text-white rounded-full text-xs flex items-center justify-center mr-2">3</span>
@@ -346,65 +348,67 @@ const calculatePricing = () => {
               </div>
             </div>
 
-            {/* Step 4: Options */}
-            <div className={`bg-white rounded-lg border shadow-sm ${!selectedTrim ? 'opacity-50' : ''}`}>
+            {/* Step 4: Options - Rows 2-3, Cols 2-4 */}
+            <div className={`bg-white rounded-lg border shadow-sm lg:col-start-2 lg:col-span-3 lg:row-start-2 lg:row-span-2 ${!selectedTrim ? 'opacity-50' : ''}`}>
               <div className="p-4 border-b bg-gray-50">
                 <h3 className="font-semibold text-gray-800 flex items-center">
                   <span className="w-6 h-6 bg-blue-500 text-white rounded-full text-xs flex items-center justify-center mr-2">4</span>
                   옵션 선택
                 </h3>
               </div>
-              <div className="p-4 space-y-2 max-h-96 overflow-y-auto">
+              <div className="p-4 max-h-96 overflow-y-auto">
                 {selectedTrim && carData[selectedModel] ? (
-                  Object.entries(carData[selectedModel][selectedPowertrain][selectedTrim].옵션).map(([optionName, optionData]) => {
-                    const isDisabled = optionData.value === false;
-                    const isIncluded = optionData.value === true;
-                    const optionPrice = typeof optionData.value === 'number' ? optionData.value : 0;
-                    
-                    return (
-                      <label 
-                        key={optionName} 
-                        className={`flex flex-col p-3 rounded-lg border transition-colors ${
-                          isDisabled ? 'bg-gray-50 opacity-50 cursor-not-allowed' : 
-                          selectedOptions[optionName] || isIncluded ? 'bg-green-50 border-green-300 cursor-pointer' : 
-                          'border-gray-200 cursor-pointer hover:bg-gray-50'
-                        }`}
-                      >
-                        <div className="flex items-start space-x-3">
-                          <input
-                            type="checkbox"
-                            checked={selectedOptions[optionName] || isIncluded}
-                            onChange={(e) => handleOptionChange(optionName, e.target.checked)}
-                            disabled={isDisabled || isIncluded}
-                            className="w-4 h-4 text-green-600 mt-0.5"
-                          />
-                          <div className="flex-1">
-                            <span className={`font-medium text-sm ${
-                              selectedOptions[optionName] || isIncluded ? 'text-green-700' : 'text-gray-700'
-                            }`}>
-                              {optionName}
-                            </span>
-                            {optionData.requires && (
-                              <div className="text-xs text-gray-500 mt-1">
-                                필요: {optionData.requires.join(', ')}
-                              </div>
-                            )}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {Object.entries(carData[selectedModel][selectedPowertrain][selectedTrim].옵션).map(([optionName, optionData]) => {
+                      const isDisabled = optionData.value === false;
+                      const isIncluded = optionData.value === true;
+                      const optionPrice = typeof optionData.value === 'number' ? optionData.value : 0;
+                      
+                      return (
+                        <label 
+                          key={optionName} 
+                          className={`flex flex-col p-3 rounded-lg border transition-colors ${
+                            isDisabled ? 'bg-gray-50 opacity-50 cursor-not-allowed' : 
+                            selectedOptions[optionName] || isIncluded ? 'bg-green-50 border-green-300 cursor-pointer' : 
+                            'border-gray-200 cursor-pointer hover:bg-gray-50'
+                          }`}
+                        >
+                          <div className="flex items-start space-x-3">
+                            <input
+                              type="checkbox"
+                              checked={selectedOptions[optionName] || isIncluded}
+                              onChange={(e) => handleOptionChange(optionName, e.target.checked)}
+                              disabled={isDisabled || isIncluded}
+                              className="w-4 h-4 text-green-600 mt-0.5"
+                            />
+                            <div className="flex-1">
+                              <span className={`font-medium text-sm ${
+                                selectedOptions[optionName] || isIncluded ? 'text-green-700' : 'text-gray-700'
+                              }`}>
+                                {optionName}
+                              </span>
+                              {optionData.requires && (
+                                <div className="text-xs text-gray-500 mt-1">
+                                  필요: {optionData.requires.join(', ')}
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                        <div className="ml-7 mt-1">
-                          <span className="text-xs font-medium">
-                            {isIncluded ? (
-                              <span className="text-green-600">기본 포함</span>
-                            ) : isDisabled ? (
-                              <span className="text-gray-400">선택 불가</span>
-                            ) : (
-                              <span className="text-blue-600">+{formatPrice(optionPrice * 10000)}</span>
-                            )}
-                          </span>
-                        </div>
-                      </label>
-                    );
-                  })
+                          <div className="ml-7 mt-1">
+                            <span className="text-xs font-medium">
+                              {isIncluded ? (
+                                <span className="text-green-600">기본 포함</span>
+                              ) : isDisabled ? (
+                                <span className="text-gray-400">선택 불가</span>
+                              ) : (
+                                <span className="text-blue-600">+{formatPrice(optionPrice * 10000)}</span>
+                              )}
+                            </span>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
                 ) : (
                   <p className="text-gray-400 text-center py-8">트림을 먼저 선택하세요</p>
                 )}
