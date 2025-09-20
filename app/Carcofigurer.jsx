@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, use } from 'react';
+import { useState, useEffect } from 'react';
+import { Download } from 'lucide-react';
 import Header from './components/Header';
 
 const CarConfigurator = () => {
@@ -85,18 +86,44 @@ const CarConfigurator = () => {
     setSelectedOptions(defaultOptions);
   };
 
+  // 옵션 선택 가능 여부 확인
+  const isOptionAvailable = (optionName, optionData) => {
+    // 기본 포함이면 항상 사용 가능
+    if (optionData.value === true) return true;
+    
+    // 선택 불가면 사용 불가
+    if (optionData.value === false) return false;
+    
+    // requires가 있으면 조건 확인
+    if (optionData.requires) {
+      return optionData.requires.every(req => {
+        const reqOption = carData[selectedModel][selectedPowertrain][selectedTrim].옵션[req];
+        // 기본 포함이거나 선택된 옵션
+        return reqOption.value === true || selectedOptions[req];
+      });
+    }
+    
+    return true;
+  };
+
   const handleOptionChange = (optionName, checked) => {
-    // 의존성 체크
     const trimData = carData[selectedModel][selectedPowertrain][selectedTrim];
     const optionData = trimData.옵션[optionName];
     
-    if (checked && optionData.requires) {
-      // 필요한 옵션들이 선택되어 있는지 확인
-      const missingRequirements = optionData.requires.filter(req => !selectedOptions[req]);
-      if (missingRequirements.length > 0) {
-        alert(`이 옵션을 선택하려면 먼저 다음 옵션들을 선택해야 합니다: ${missingRequirements.join(', ')}`);
-        return;
-      }
+    // 기본 포함 옵션은 변경 불가
+    if (optionData.value === true) return;
+    
+    // 선택 불가 옵션은 변경 불가
+    if (optionData.value === false) return;
+    
+    // 체크할 때 의존성 확인
+    if (checked && !isOptionAvailable(optionName, optionData)) {
+      const missingRequirements = optionData.requires.filter(req => {
+        const reqOption = carData[selectedModel][selectedPowertrain][selectedTrim].옵션[req];
+        return reqOption.value !== true && !selectedOptions[req];
+      });
+      alert(`이 옵션을 선택하려면 먼저 다음 옵션들을 선택해야 합니다: ${missingRequirements.join(', ')}`);
+      return;
     }
     
     setSelectedOptions(prev => ({
@@ -105,7 +132,7 @@ const CarConfigurator = () => {
     }));
   };
 
-const calculatePricing = () => {
+  const calculatePricing = () => {
     if (!carData || !selectedModel || !selectedPowertrain || !selectedTrim) {
       return { base: 0, options: 0, total: 0 };
     }
@@ -144,6 +171,22 @@ const calculatePricing = () => {
     };
   };
 
+  // 옵션 정렬 함수: 기본 -> 선택 -> 선택불가 순
+  const sortOptions = (options) => {
+    return Object.entries(options).sort(([aName, aData], [bName, bData]) => {
+      // 기본 포함 (value === true)
+      if (aData.value === true && bData.value !== true) return -1;
+      if (bData.value === true && aData.value !== true) return 1;
+      
+      // 선택 불가 (value === false)
+      if (aData.value === false && bData.value !== false) return 1;
+      if (bData.value === false && aData.value !== false) return -1;
+      
+      // 같은 카테고리 내에서는 이름순 정렬
+      return aName.localeCompare(bName);
+    });
+  };
+
   const handleJsonInputChange = (value) => {
     setJsonInput(value);
     try {
@@ -152,6 +195,19 @@ const calculatePricing = () => {
     } catch (e) {
       // JSON 파싱 에러는 무시 (사용자가 입력 중일 수 있음)
     }
+  };
+
+  // JSON 다운로드 함수
+  const downloadJson = (data, filename) => {
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   const formatPrice = (price) => {
@@ -229,6 +285,7 @@ const calculatePricing = () => {
             </div>
           </div>
         )}
+        
         {/* Loading State */}
         {loading && (
           <div className="flex justify-center items-center py-12">
@@ -359,17 +416,20 @@ const calculatePricing = () => {
               <div className="p-4 max-h-96 overflow-y-auto">
                 {selectedTrim && carData[selectedModel] ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {Object.entries(carData[selectedModel][selectedPowertrain][selectedTrim].옵션).map(([optionName, optionData]) => {
-                      const isDisabled = optionData.value === false;
+                    {sortOptions(carData[selectedModel][selectedPowertrain][selectedTrim].옵션).map(([optionName, optionData]) => {
                       const isIncluded = optionData.value === true;
+                      const isDisabled = optionData.value === false;
+                      const isAvailable = isOptionAvailable(optionName, optionData);
                       const optionPrice = typeof optionData.value === 'number' ? optionData.value : 0;
                       
                       return (
                         <label 
                           key={optionName} 
                           className={`flex flex-col p-3 rounded-lg border transition-colors ${
-                            isDisabled ? 'bg-gray-50 opacity-50 cursor-not-allowed' : 
-                            selectedOptions[optionName] || isIncluded ? 'bg-green-50 border-green-300 cursor-pointer' : 
+                            isIncluded ? 'bg-blue-50 border-blue-300 cursor-default' :
+                            isDisabled ? 'bg-gray-50 border-gray-200 opacity-50 cursor-not-allowed' : 
+                            !isAvailable ? 'bg-red-50 border-red-200 opacity-75 cursor-not-allowed' :
+                            selectedOptions[optionName] ? 'bg-green-50 border-green-300 cursor-pointer' : 
                             'border-gray-200 cursor-pointer hover:bg-gray-50'
                           }`}
                         >
@@ -378,12 +438,13 @@ const calculatePricing = () => {
                               type="checkbox"
                               checked={selectedOptions[optionName] || isIncluded}
                               onChange={(e) => handleOptionChange(optionName, e.target.checked)}
-                              disabled={isDisabled || isIncluded}
+                              disabled={isIncluded || isDisabled || !isAvailable}
                               className="w-4 h-4 text-green-600 mt-0.5"
                             />
                             <div className="flex-1">
                               <span className={`font-medium text-sm ${
-                                selectedOptions[optionName] || isIncluded ? 'text-green-700' : 'text-gray-700'
+                                isIncluded ? 'text-blue-700' :
+                                selectedOptions[optionName] ? 'text-green-700' : 'text-gray-700'
                               }`}>
                                 {optionName}
                               </span>
@@ -397,9 +458,11 @@ const calculatePricing = () => {
                           <div className="ml-7 mt-1">
                             <span className="text-xs font-medium">
                               {isIncluded ? (
-                                <span className="text-green-600">기본 포함</span>
+                                <span className="text-blue-600">기본 포함</span>
                               ) : isDisabled ? (
                                 <span className="text-gray-400">선택 불가</span>
+                              ) : !isAvailable ? (
+                                <span className="text-red-600">조건 미충족</span>
                               ) : (
                                 <span className="text-blue-600">+{formatPrice(optionPrice * 10000)}</span>
                               )}
@@ -422,8 +485,15 @@ const calculatePricing = () => {
           <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* JSON Input */}
             <div className="bg-white rounded-lg border shadow-sm">
-              <div className="p-4 border-b bg-gray-50">
+              <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
                 <h3 className="font-semibold text-gray-800">데이터 입력 (JSON)</h3>
+                <button
+                  onClick={() => downloadJson(jsonInput, 'car-data-input.json')}
+                  className="flex items-center space-x-2 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                >
+                  <Download size={16} />
+                  <span>다운로드</span>
+                </button>
               </div>
               <div className="p-4">
                 <textarea
@@ -437,8 +507,16 @@ const calculatePricing = () => {
 
             {/* JSON Output */}
             <div className="bg-white rounded-lg border shadow-sm">
-              <div className="p-4 border-b bg-gray-50">
+              <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
                 <h3 className="font-semibold text-gray-800">구성 결과 (JSON)</h3>
+                <button
+                  onClick={() => downloadJson(jsonOutput, `car-config-${selectedModel}-${selectedTrim}.json`)}
+                  className="flex items-center space-x-2 px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
+                  disabled={!jsonOutput}
+                >
+                  <Download size={16} />
+                  <span>다운로드</span>
+                </button>
               </div>
               <div className="p-4">
                 <textarea
