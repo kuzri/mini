@@ -10,6 +10,7 @@ const CarConfigurator = () => {
   const [selectedPowertrain, setSelectedPowertrain] = useState('');
   const [selectedTrim, setSelectedTrim] = useState('');
   const [selectedOptions, setSelectedOptions] = useState({});
+  const [selectedColor, setSelectedColor] = useState('');
   const [carData, setCarData] = useState(null);
   const [jsonInput, setJsonInput] = useState('');
   const [jsonOutput, setJsonOutput] = useState('');
@@ -42,18 +43,20 @@ const CarConfigurator = () => {
         model: selectedModel,
         powertrain: selectedPowertrain,
         trim: selectedTrim,
+        color: selectedColor,
         options: selectedOptions,
         pricing: calculatePricing()
       };
       setJsonOutput(JSON.stringify(currentConfig, null, 2));
     }
-  }, [selectedCategory, selectedModel, selectedPowertrain, selectedTrim, selectedOptions]);
+  }, [selectedCategory, selectedModel, selectedPowertrain, selectedTrim, selectedColor, selectedOptions]);
 
   const handleCategoryChange = async (category) => {
     setSelectedCategory(category);
     setSelectedModel('');
     setSelectedPowertrain('');
     setSelectedTrim('');
+    setSelectedColor('');
     setSelectedOptions({});
     
     // 선택된 카테고리의 JSON 파일 로드
@@ -64,17 +67,20 @@ const CarConfigurator = () => {
     setSelectedModel(model);
     setSelectedPowertrain('');
     setSelectedTrim('');
+    setSelectedColor('');
     setSelectedOptions({});
   };
 
   const handlePowertrainChange = (powertrain) => {
     setSelectedPowertrain(powertrain);
     setSelectedTrim('');
+    setSelectedColor('');
     setSelectedOptions({});
   };
 
   const handleTrimChange = (trim) => {
     setSelectedTrim(trim);
+    setSelectedColor('');
     // 기본 선택된 옵션들을 설정
     const trimData = carData[selectedModel][selectedPowertrain][trim];
     const defaultOptions = {};
@@ -84,6 +90,10 @@ const CarConfigurator = () => {
       }
     });
     setSelectedOptions(defaultOptions);
+  };
+
+  const handleColorChange = (color) => {
+    setSelectedColor(color);
   };
 
   // 옵션 선택 가능 여부 확인
@@ -134,13 +144,15 @@ const CarConfigurator = () => {
 
   const calculatePricing = () => {
     if (!carData || !selectedModel || !selectedPowertrain || !selectedTrim) {
-      return { base: 0, options: 0, total: 0 };
+      return { base: 0, options: 0, color: 0, total: 0 };
     }
 
     const trimData = carData[selectedModel][selectedPowertrain][selectedTrim];
     const basePrice = trimData.가격 * 10000; // 만원 단위를 원 단위로 변환
     let optionsPrice = 0;
+    let colorPrice = 0;
 
+    // 옵션 가격 계산
     Object.entries(selectedOptions).forEach(([optionName, selected]) => {
       if (selected && trimData.옵션[optionName]) {
         const optionData = trimData.옵션[optionName];
@@ -164,10 +176,19 @@ const CarConfigurator = () => {
       }
     });
 
+    // 색상 가격 계산
+    if (selectedColor && carData[selectedModel][selectedPowertrain]["색상"] && carData[selectedModel][selectedPowertrain]["색상"][selectedColor]) {
+      const colorData = carData[selectedModel][selectedPowertrain]["색상"][selectedColor];
+      if (typeof colorData.value === 'number') {
+        colorPrice = colorData.value * 10000; // 만원 단위를 원 단위로 변환
+      }
+    }
+
     return {
       base: basePrice,
       options: optionsPrice,
-      total: basePrice + optionsPrice
+      color: colorPrice,
+      total: basePrice + optionsPrice + colorPrice
     };
   };
 
@@ -261,6 +282,15 @@ const CarConfigurator = () => {
                   트림: {selectedTrim || '선택안됨'}
                 </span>
               </div>
+
+              <div className="flex items-center space-x-4">
+                <div className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium ${
+                  selectedColor ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600'
+                }`}>5</div>
+                <span className={`font-medium ${selectedColor ? 'text-green-600' : 'text-gray-400'}`}>
+                  색상: {selectedColor || '선택안됨'}
+                </span>
+              </div>
             </div>
           </div>
         )}
@@ -272,6 +302,7 @@ const CarConfigurator = () => {
               <div>
                 <h2 className="text-2xl font-bold text-gray-800 mb-2">
                   {selectedModel} {selectedPowertrain} {selectedTrim}
+                  {selectedColor && <span className="text-lg text-gray-600 ml-2">({selectedColor})</span>}
                 </h2>
                 <p className="text-gray-600">선택된 옵션 {Object.values(selectedOptions).filter(Boolean).length}개</p>
               </div>
@@ -279,7 +310,7 @@ const CarConfigurator = () => {
                 <p className="text-sm text-gray-500">예상 총액</p>
                 <p className="text-3xl font-bold text-blue-600">{formatPrice(pricing.total)}</p>
                 <p className="text-sm text-gray-500">
-                  기본가 {formatPrice(pricing.base)} + 옵션 {formatPrice(pricing.options)}
+                  기본가 {formatPrice(pricing.base)} + 옵션 {formatPrice(pricing.options)} + 색상 {formatPrice(pricing.color)}
                 </p>
               </div>
             </div>
@@ -377,7 +408,7 @@ const CarConfigurator = () => {
               </div>
               <div className="p-4 space-y-2">
                 {selectedPowertrain && carData[selectedModel] ? (
-                  Object.keys(carData[selectedModel][selectedPowertrain]).map(trim => (
+                  Object.keys(carData[selectedModel][selectedPowertrain]).filter(key => key !== '색상').map(trim => (
                     <label key={trim} className={`flex flex-col p-3 rounded-lg border cursor-pointer hover:bg-gray-50 transition-colors ${
                       selectedTrim === trim ? 'bg-blue-50 border-blue-300' : 'border-gray-200'
                     }`}>
@@ -405,11 +436,73 @@ const CarConfigurator = () => {
               </div>
             </div>
 
-            {/* Step 4: Options - Rows 2-3, Cols 2-4 */}
-            <div className={`bg-white rounded-lg border shadow-sm lg:col-start-2 lg:col-span-3 lg:row-start-2 lg:row-span-2 ${!selectedTrim ? 'opacity-50' : ''}`}>
+            {/* Step 4: Color Selection - Row 4, Col 1 */}
+            <div className={`bg-white rounded-lg border shadow-sm lg:col-start-1 lg:row-start-4 ${!selectedTrim ? 'opacity-50' : ''}`}>
               <div className="p-4 border-b bg-gray-50">
                 <h3 className="font-semibold text-gray-800 flex items-center">
                   <span className="w-6 h-6 bg-blue-500 text-white rounded-full text-xs flex items-center justify-center mr-2">4</span>
+                  색상 선택
+                </h3>
+              </div>
+              <div className="p-4 space-y-2">
+                {selectedTrim && carData[selectedModel] && carData[selectedModel][selectedPowertrain]["색상"] ? (
+                  <>
+                    <label className={`flex flex-col p-3 rounded-lg border cursor-pointer hover:bg-gray-50 transition-colors ${
+                      !selectedColor ? 'bg-blue-50 border-blue-300' : 'border-gray-200'
+                    }`}>
+                      <div className="flex items-center space-x-3">
+                        <input
+                          type="radio"
+                          name="color"
+                          value=""
+                          checked={!selectedColor}
+                          onChange={(e) => handleColorChange('')}
+                          className="w-4 h-4 text-blue-600"
+                        />
+                        <span className={`font-medium ${!selectedColor ? 'text-blue-700' : 'text-gray-700'}`}>
+                          기본 색상
+                        </span>
+                      </div>
+                      <span className="text-sm text-gray-500 ml-7 mt-1">
+                        추가 비용 없음
+                      </span>
+                    </label>
+                    {Object.entries(carData[selectedModel][selectedPowertrain]["색상"]).map(([color, colorData]) => (
+                      <label key={color} className={`flex flex-col p-3 rounded-lg border cursor-pointer hover:bg-gray-50 transition-colors ${
+                        selectedColor === color ? 'bg-blue-50 border-blue-300' : 'border-gray-200'
+                      }`}>
+                        <div className="flex items-center space-x-3">
+                          <input
+                            type="radio"
+                            name="color"
+                            value={color}
+                            checked={selectedColor === color}
+                            onChange={(e) => handleColorChange(e.target.value)}
+                            className="w-4 h-4 text-blue-600"
+                          />
+                          <span className={`font-medium ${selectedColor === color ? 'text-blue-700' : 'text-gray-700'}`}>
+                            {color}
+                          </span>
+                        </div>
+                        <span className="text-sm text-gray-500 ml-7 mt-1">
+                          +{formatPrice(colorData.value * 10000)}
+                        </span>
+                      </label>
+                    ))}
+                  </>
+                ) : selectedTrim ? (
+                  <p className="text-gray-400 text-center py-8">색상 선택 없음</p>
+                ) : (
+                  <p className="text-gray-400 text-center py-8">트림을 먼저 선택하세요</p>
+                )}
+              </div>
+            </div>
+
+            {/* Step 5: Options - Rows 2-4, Cols 2-4 */}
+            <div className={`bg-white rounded-lg border shadow-sm lg:col-start-2 lg:col-span-3 lg:row-start-2 lg:row-span-3 ${!selectedTrim ? 'opacity-50' : ''}`}>
+              <div className="p-4 border-b bg-gray-50">
+                <h3 className="font-semibold text-gray-800 flex items-center">
+                  <span className="w-6 h-6 bg-blue-500 text-white rounded-full text-xs flex items-center justify-center mr-2">5</span>
                   옵션 선택
                 </h3>
               </div>
