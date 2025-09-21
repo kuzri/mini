@@ -1,5 +1,5 @@
 const Header = ({ selectedCategory, onCategoryChange }) => {
-  const categories = ['EV', 'PBV', '승용', 'RV', '택시 & 상용'];
+  const categories = ['EV', 'PBV', '승용', 'RV', '택시상용'];
 
   return (
     <header className="bg-white border-b">
