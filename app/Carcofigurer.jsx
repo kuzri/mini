@@ -124,7 +124,14 @@ const CarConfigurator = () => {
         return reqOption.value === true || selectedOptions[req];
       });
     }
-    
+
+    if (optionData.excludes) {
+      const hasExcludedOption = optionData.excludes.some(excludedOption => {
+        const excludedOptionData = carData[selectedModel][selectedPowertrain][selectedTrim].옵션[excludedOption];
+        return excludedOptionData?.value === true || selectedOptions[excludedOption];
+      });
+      if (hasExcludedOption) return false;
+    }
     return true;
   };
 
@@ -147,6 +154,32 @@ const CarConfigurator = () => {
       alert(`이 옵션을 선택하려면 먼저 다음 옵션들을 선택해야 합니다: ${missingRequirements.join(', ')}`);
       return;
     }
+      // 새로 추가: 배타적 옵션 경고
+  if (optionData.excludes) {
+    const conflictingOptions = optionData.excludes.filter(excludedOption => {
+      const excludedOptionData = trimData.옵션[excludedOption];
+      return excludedOptionData?.value === true || selectedOptions[excludedOption];
+    });
+    if (conflictingOptions.length > 0) {
+      alert(`이 옵션은 다음 옵션들과 함께 선택할 수 없습니다: ${conflictingOptions.join(', ')}`);
+    }
+  }
+  
+  setSelectedOptions(prev => {
+    const newOptions = { ...prev, [optionName]: checked };
+    
+    // 새로 추가: 선택 시 배타적 옵션 자동 해제
+    if (checked && optionData.excludes) {
+      optionData.excludes.forEach(excludedOption => {
+        const excludedOptionData = trimData.옵션[excludedOption];
+        if (excludedOptionData?.value !== true) {
+          newOptions[excludedOption] = false;
+        }
+      });
+    }
+    
+    return newOptions;
+  });
     
     setSelectedOptions(prev => ({
       ...prev,
@@ -154,24 +187,30 @@ const CarConfigurator = () => {
     }));
   };
 
-  const calculatePricing = () => {
+const calculatePricing = () => {
     if (!carData || !selectedModel || !selectedPowertrain || !selectedTrim) {
-      return { base: 0, individualTaxBase: 0, ecoTaxBase: 0, options: 0, color: 0, total: 0, individualTaxTotal: 0, ecoTaxTotal: 0 };
+      return { base: 0, individualTaxBase: 0, ecoTaxBase: 0, options: 0, color: 0, total: 0, individualTaxTotal: 0, ecoTaxTotal: 0, finalTotal: 0, appliedBasePrice: 0 };
     }
 
     const trimData = carData[selectedModel][selectedPowertrain][selectedTrim];
     let basePrice = trimData.가격 * 10000; // 만원 단위를 원 단위로 변환
     let individualTaxBasePrice = basePrice;
     let ecoTaxBasePrice = basePrice;
+    let combinedTaxBasePrice = basePrice;
     
-    // 개별소비세 3.5% 적용
-    if (useIndividualTax && trimData.개별소비세) {
+    // 개별소비세 적용
+    if (trimData.개별소비세) {
       individualTaxBasePrice = trimData.개별소비세 * 10000;
     }
     
-    // 친환경차 세제 혜택 적용
-    if (useEcoTax && trimData.친환경차세제혜택) {
-      ecoTaxBasePrice = trimData.친환경차세제혜택 * 10000;
+    // 친환경 세제 혜택 적용
+    if (trimData.친환경) {
+      ecoTaxBasePrice = trimData.친환경 * 10000;
+    }
+    
+    // 개별소비세 + 친환경 조합 적용
+    if (trimData.개별친환경) {
+      combinedTaxBasePrice = trimData.개별친환경 * 10000;
     }
     
     let optionsPrice = 0;
@@ -209,12 +248,24 @@ const CarConfigurator = () => {
       }
     }
 
-    // 최종 기본 가격 결정 (우선순위: 친환경차세제혜택 > 개별소비세 > 기본가격)
+    // 최종 기본 가격 결정
     let finalBasePrice = basePrice;
-    if (useEcoTax && trimData.친환경차세제혜택) {
+    let appliedBasePrice = basePrice;
+    
+    // 둘 다 선택되고 개별친환경 가격이 있는 경우
+    if (useIndividualTax && useEcoTax && trimData.개별친환경) {
+      finalBasePrice = combinedTaxBasePrice;
+      appliedBasePrice = combinedTaxBasePrice;
+    }
+    // 친환경만 선택된 경우
+    else if (useEcoTax && trimData.친환경) {
       finalBasePrice = ecoTaxBasePrice;
-    } else if (useIndividualTax && trimData.개별소비세) {
+      appliedBasePrice = ecoTaxBasePrice;
+    }
+    // 개별소비세만 선택된 경우
+    else if (useIndividualTax && trimData.개별소비세) {
       finalBasePrice = individualTaxBasePrice;
+      appliedBasePrice = individualTaxBasePrice;
     }
     
     const totalPrice = finalBasePrice + optionsPrice + colorPrice;
@@ -223,12 +274,15 @@ const CarConfigurator = () => {
       base: basePrice,
       individualTaxBase: individualTaxBasePrice,
       ecoTaxBase: ecoTaxBasePrice,
+      combinedTaxBase: combinedTaxBasePrice,
       options: optionsPrice,
       color: colorPrice,
       total: basePrice + optionsPrice + colorPrice,
       individualTaxTotal: individualTaxBasePrice + optionsPrice + colorPrice,
       ecoTaxTotal: ecoTaxBasePrice + optionsPrice + colorPrice,
-      finalTotal: totalPrice
+      combinedTaxTotal: combinedTaxBasePrice + optionsPrice + colorPrice,
+      finalTotal: totalPrice,
+      appliedBasePrice: appliedBasePrice
     };
   };
 
@@ -653,7 +707,7 @@ const CarConfigurator = () => {
                               ) : isDisabled ? (
                                 <span className="text-gray-400">선택 불가</span>
                               ) : !isAvailable ? (
-                                <span className="text-red-600">조건 미충족</span>
+                                <span className="text-red-600">선택 불가</span>
                               ) : (
                                 <span className="text-blue-600">+{formatPrice(optionPrice * 10000)}</span>
                               )}
