@@ -357,10 +357,7 @@ const CarConfigurator = () => {
                 </p>
                 {(useIndividualTax || useEcoTax) && (
                   <p className="text-xs text-green-600 mt-1">
-                    {useIndividualTax && useEcoTax && '개별소비세 + 친환경 세제 혜택 '}
-                    {useIndividualTax && !useEcoTax && '개별소비세 3.5% '}
-                    {!useIndividualTax && useEcoTax && '친환경 세제 혜택 '}
-                    적용
+                    적용된 가격 타입: {pricing.appliedPriceType}
                   </p>
                 )}
               </div>
