@@ -97,6 +97,9 @@ npm run dev
   * `"value": false` → 선택 불가
   * `"value": 숫자` → 선택 시 추가 금액(만 원)
   * `"requires": ["옵션A"]` → 의존성 옵션 필요
+  *  `"conditional": ["옵션A", value:""]` → 조건에 따라 가격 변동
+  *  `"excludes": ["옵션A"]` → 선택시 옵션 A에 대해 선택 불가
+
 
 ---
 
