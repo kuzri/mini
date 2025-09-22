@@ -15,6 +15,8 @@ const CarConfigurator = () => {
   const [jsonInput, setJsonInput] = useState('');
   const [jsonOutput, setJsonOutput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [useIndividualTax, setUseIndividualTax] = useState(false);
+  const [useEcoTax, setUseEcoTax] = useState(false);
 
   // JSON 파일 로딩 함수
   const loadCarData = async (category) => {
@@ -45,11 +47,13 @@ const CarConfigurator = () => {
         trim: selectedTrim,
         color: selectedColor,
         options: selectedOptions,
+        ecoTaxApplied: useEcoTax,
+        individualTaxApplied: useIndividualTax,
         pricing: calculatePricing()
       };
       setJsonOutput(JSON.stringify(currentConfig, null, 2));
     }
-  }, [selectedCategory, selectedModel, selectedPowertrain, selectedTrim, selectedColor, selectedOptions]);
+  }, [selectedCategory, selectedModel, selectedPowertrain, selectedTrim, selectedColor, selectedOptions, useEcoTax, useIndividualTax]);
 
   const handleCategoryChange = async (category) => {
     setSelectedCategory(category);
@@ -58,6 +62,8 @@ const CarConfigurator = () => {
     setSelectedTrim('');
     setSelectedColor('');
     setSelectedOptions({});
+    setUseIndividualTax(false);
+    setUseEcoTax(false);
     
     // 선택된 카테고리의 JSON 파일 로드
     await loadCarData(category);
@@ -69,6 +75,8 @@ const CarConfigurator = () => {
     setSelectedTrim('');
     setSelectedColor('');
     setSelectedOptions({});
+    setUseIndividualTax(false);
+    setUseEcoTax(false);
   };
 
   const handlePowertrainChange = (powertrain) => {
@@ -76,11 +84,15 @@ const CarConfigurator = () => {
     setSelectedTrim('');
     setSelectedColor('');
     setSelectedOptions({});
+    setUseIndividualTax(false);
+    setUseEcoTax(false);
   };
 
   const handleTrimChange = (trim) => {
     setSelectedTrim(trim);
     setSelectedColor('');
+    setUseIndividualTax(false);
+    setUseEcoTax(false);
     // 기본 선택된 옵션들을 설정
     const trimData = carData[selectedModel][selectedPowertrain][trim];
     const defaultOptions = {};
@@ -144,11 +156,24 @@ const CarConfigurator = () => {
 
   const calculatePricing = () => {
     if (!carData || !selectedModel || !selectedPowertrain || !selectedTrim) {
-      return { base: 0, options: 0, color: 0, total: 0 };
+      return { base: 0, individualTaxBase: 0, ecoTaxBase: 0, options: 0, color: 0, total: 0, individualTaxTotal: 0, ecoTaxTotal: 0 };
     }
 
     const trimData = carData[selectedModel][selectedPowertrain][selectedTrim];
-    const basePrice = trimData.가격 * 10000; // 만원 단위를 원 단위로 변환
+    let basePrice = trimData.가격 * 10000; // 만원 단위를 원 단위로 변환
+    let individualTaxBasePrice = basePrice;
+    let ecoTaxBasePrice = basePrice;
+    
+    // 개별소비세 3.5% 적용
+    if (useIndividualTax && trimData.개별소비세) {
+      individualTaxBasePrice = trimData.개별소비세 * 10000;
+    }
+    
+    // 친환경차 세제 혜택 적용
+    if (useEcoTax && trimData.친환경차세제혜택) {
+      ecoTaxBasePrice = trimData.친환경차세제혜택 * 10000;
+    }
+    
     let optionsPrice = 0;
     let colorPrice = 0;
 
@@ -184,11 +209,26 @@ const CarConfigurator = () => {
       }
     }
 
+    // 최종 기본 가격 결정 (우선순위: 친환경차세제혜택 > 개별소비세 > 기본가격)
+    let finalBasePrice = basePrice;
+    if (useEcoTax && trimData.친환경차세제혜택) {
+      finalBasePrice = ecoTaxBasePrice;
+    } else if (useIndividualTax && trimData.개별소비세) {
+      finalBasePrice = individualTaxBasePrice;
+    }
+    
+    const totalPrice = finalBasePrice + optionsPrice + colorPrice;
+
     return {
       base: basePrice,
+      individualTaxBase: individualTaxBasePrice,
+      ecoTaxBase: ecoTaxBasePrice,
       options: optionsPrice,
       color: colorPrice,
-      total: basePrice + optionsPrice + colorPrice
+      total: basePrice + optionsPrice + colorPrice,
+      individualTaxTotal: individualTaxBasePrice + optionsPrice + colorPrice,
+      ecoTaxTotal: ecoTaxBasePrice + optionsPrice + colorPrice,
+      finalTotal: totalPrice
     };
   };
 
@@ -232,6 +272,9 @@ const CarConfigurator = () => {
   };
 
   const formatPrice = (price) => {
+    if (price === undefined || price === null || isNaN(price)) {
+      return '₩0';
+    }
     return `₩${price.toLocaleString()}`;
   };
 
@@ -308,10 +351,18 @@ const CarConfigurator = () => {
               </div>
               <div className="text-right">
                 <p className="text-sm text-gray-500">예상 총액</p>
-                <p className="text-3xl font-bold text-blue-600">{formatPrice(pricing.total)}</p>
+                <p className="text-3xl font-bold text-blue-600">{formatPrice(pricing.finalTotal)}</p>
                 <p className="text-sm text-gray-500">
-                  기본가 {formatPrice(pricing.base)} + 옵션 {formatPrice(pricing.options)} + 색상 {formatPrice(pricing.color)}
+                  기본가 {formatPrice(pricing.appliedBasePrice)} + 옵션 {formatPrice(pricing.options)} + 색상 {formatPrice(pricing.color)}
                 </p>
+                {(useIndividualTax || useEcoTax) && (
+                  <p className="text-xs text-green-600 mt-1">
+                    {useIndividualTax && useEcoTax && '개별소비세 + 친환경 세제 혜택 '}
+                    {useIndividualTax && !useEcoTax && '개별소비세 3.5% '}
+                    {!useIndividualTax && useEcoTax && '친환경 세제 혜택 '}
+                    적용
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -408,28 +459,78 @@ const CarConfigurator = () => {
               </div>
               <div className="p-4 space-y-2">
                 {selectedPowertrain && carData[selectedModel] ? (
-                  Object.keys(carData[selectedModel][selectedPowertrain]).filter(key => key !== '색상').map(trim => (
-                    <label key={trim} className={`flex flex-col p-3 rounded-lg border cursor-pointer hover:bg-gray-50 transition-colors ${
-                      selectedTrim === trim ? 'bg-blue-50 border-blue-300' : 'border-gray-200'
-                    }`}>
-                      <div className="flex items-center space-x-3">
-                        <input
-                          type="radio"
-                          name="trim"
-                          value={trim}
-                          checked={selectedTrim === trim}
-                          onChange={(e) => handleTrimChange(e.target.value)}
-                          className="w-4 h-4 text-blue-600"
-                        />
-                        <span className={`font-medium ${selectedTrim === trim ? 'text-blue-700' : 'text-gray-700'}`}>
-                          {trim}
-                        </span>
-                      </div>
-                      <span className="text-sm text-gray-500 ml-7 mt-1">
-                        {formatPrice(carData[selectedModel][selectedPowertrain][trim].가격 * 10000)}
-                      </span>
-                    </label>
-                  ))
+                  Object.keys(carData[selectedModel][selectedPowertrain]).filter(key => key !== '색상').map(trim => {
+                    const trimData = carData[selectedModel][selectedPowertrain][trim];
+                    const hasIndividualTax = trimData.개별소비세;
+                    const hasEcoTax = trimData.친환경;
+                    const hasCombined = trimData.개별친환경;
+                    
+                    return (
+                      <label key={trim} className={`flex flex-col p-3 rounded-lg border cursor-pointer hover:bg-gray-50 transition-colors ${
+                        selectedTrim === trim ? 'bg-blue-50 border-blue-300' : 'border-gray-200'
+                      }`}>
+                        <div className="flex items-center space-x-3">
+                          <input
+                            type="radio"
+                            name="trim"
+                            value={trim}
+                            checked={selectedTrim === trim}
+                            onChange={(e) => handleTrimChange(e.target.value)}
+                            className="w-4 h-4 text-blue-600"
+                          />
+                          <span className={`font-medium ${selectedTrim === trim ? 'text-blue-700' : 'text-gray-700'}`}>
+                            {trim}
+                          </span>
+                        </div>
+                        <div className="ml-7 mt-1 space-y-1">
+                          <span className="text-sm text-gray-500">
+                            기본가: {formatPrice(trimData.가격 * 10000)}
+                          </span>
+                          {hasIndividualTax && (
+                            <div className="text-xs text-orange-600">
+                              개별소비세 3.5%: {formatPrice(trimData.개별소비세 * 10000)}
+                            </div>
+                          )}
+                          {hasEcoTax && (
+                            <div className="text-xs text-green-600">
+                              친환경 세제 혜택: {formatPrice(trimData.친환경 * 10000)}
+                            </div>
+                          )}
+                          {hasCombined && (
+                            <div className="text-xs text-purple-600">
+                              개별+친환경: {formatPrice(trimData.개별친환경 * 10000)}
+                            </div>
+                          )}
+                          {selectedTrim === trim && (hasIndividualTax || hasEcoTax) && (
+                            <div className="space-y-1 pt-1">
+                              {hasIndividualTax && (
+                                <label className="flex items-center space-x-2 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={useIndividualTax}
+                                    onChange={(e) => setUseIndividualTax(e.target.checked)}
+                                    className="w-3 h-3 text-orange-600"
+                                  />
+                                  <span className="text-orange-600">개별소비세 3.5% 적용</span>
+                                </label>
+                              )}
+                              {hasEcoTax && (
+                                <label className="flex items-center space-x-2 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={useEcoTax}
+                                    onChange={(e) => setUseEcoTax(e.target.checked)}
+                                    className="w-3 h-3 text-green-600"
+                                  />
+                                  <span className="text-green-600">친환경 세제 혜택 적용</span>
+                                </label>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </label>
+                    );
+                  })
                 ) : (
                   <p className="text-gray-400 text-center py-8">파워트레인을 먼저 선택하세요</p>
                 )}
